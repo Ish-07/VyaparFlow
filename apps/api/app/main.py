@@ -25,7 +25,6 @@ async def health() -> dict:
     return {"status": "ok", "environment": settings.environment}
 
 
-# Routers are added here as each module (auth, products, voice, etc.)
-# is built in later steps, e.g.:
-# from app.api.v1.router import api_router
-# app.include_router(api_router, prefix="/api/v1")
+from app.api.v1.router import api_router  # noqa: E402
+
+app.include_router(api_router, prefix="/api/v1")
