@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import ForeignKey, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.common import TimestampMixin, UUIDPrimaryKeyMixin
@@ -26,6 +26,10 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     occurred_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
 
+    items: Mapped[list["TransactionItem"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
+    )
+
 
 class TransactionItem(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "transaction_items"
@@ -39,6 +43,8 @@ class TransactionItem(Base, UUIDPrimaryKeyMixin):
     quantity: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+
+    transaction: Mapped["Transaction"] = relationship(back_populates="items")
 
 
 class Expense(Base, UUIDPrimaryKeyMixin, TimestampMixin):

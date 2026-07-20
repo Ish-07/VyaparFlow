@@ -34,6 +34,28 @@ def _to_response(product) -> ProductResponse:
     )
 
 
+def enforce_stock_policy(*, product, quantity_change, confirm_negative_stock: bool) -> None:
+    """Shared negative-stock policy: used by both direct stock adjustment
+    and sale recording, so a sale can't go negative any more permissively
+    than a manual stock edit. Raises HTTPException(409) if blocked.
+    """
+    new_quantity = product.stock_quantity + quantity_change
+    if new_quantity < 0 and not settings.allow_negative_stock and not confirm_negative_stock:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    f"Insufficient stock for '{product.name}': {product.stock_quantity} "
+                    f"available, {abs(quantity_change)} requested."
+                ),
+                "product_id": str(product.id),
+                "current_stock": float(product.stock_quantity),
+                "requested_deduction": float(abs(quantity_change)),
+                "resolution": "Retry with confirm_negative_stock=true to override.",
+            },
+        )
+
+
 class InventoryService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -103,21 +125,12 @@ class InventoryService:
         if not product:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
+        enforce_stock_policy(
+            product=product,
+            quantity_change=payload.quantity_change,
+            confirm_negative_stock=payload.confirm_negative_stock,
+        )
         new_quantity = product.stock_quantity + payload.quantity_change
-
-        if new_quantity < 0 and not settings.allow_negative_stock and not payload.confirm_negative_stock:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "message": (
-                        f"Insufficient stock: {product.stock_quantity} available, "
-                        f"{abs(payload.quantity_change)} requested."
-                    ),
-                    "current_stock": float(product.stock_quantity),
-                    "requested_deduction": float(abs(payload.quantity_change)),
-                    "resolution": "Retry with confirm_negative_stock=true to override.",
-                },
-            )
 
         product.stock_quantity = new_quantity
         movement_type = "IN" if payload.quantity_change > 0 else "OUT"
