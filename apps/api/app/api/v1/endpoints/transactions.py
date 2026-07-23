@@ -18,7 +18,9 @@ async def record_sale(
     ctx: BusinessContext = Depends(require_business_context),
     session: AsyncSession = Depends(get_session),
 ):
-    return await FinanceService(session).record_sale(business_id=ctx.business_id, payload=payload)
+    return await FinanceService(session).record_sale(
+        business_id=ctx.business_id, payload=payload, actor_id=ctx.user_id
+    )
 
 
 @router.get("", response_model=list[TransactionResponse])

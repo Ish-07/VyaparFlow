@@ -13,7 +13,9 @@ from app.schemas.transaction import (
     SaleCreateRequest,
     TransactionResponse,
 )
+from app.services.audit_service import AuditLogService
 from app.services.inventory_service import enforce_stock_policy
+from app.services.reminder_service import ReminderService
 
 
 class FinanceService:
@@ -23,9 +25,11 @@ class FinanceService:
         self.customers = CustomerRepository(session)
         self.transactions = TransactionRepository(session)
         self.expenses = ExpenseRepository(session)
+        self.audit = AuditLogService(session)
+        self.reminders = ReminderService(session)
 
     async def record_sale(
-        self, *, business_id: UUID, payload: SaleCreateRequest
+        self, *, business_id: UUID, payload: SaleCreateRequest, actor_id: UUID | None = None
     ) -> TransactionResponse:
         """Mirrors the LLD's recordSaleWorkflow: lock every product row,
         validate stock for ALL items before writing anything, then create
@@ -106,6 +110,23 @@ class FinanceService:
                 customer.balance_due = customer.balance_due + total_amount
             customer.last_purchase_at = datetime.utcnow()
 
+        for product in locked_products.values():
+            await self.reminders.ensure_low_stock_reminder(business_id=business_id, product=product)
+
+        await self.audit.record(
+            business_id=business_id,
+            actor_type="user",
+            actor_id=str(actor_id) if actor_id else None,
+            action="sale.recorded",
+            entity_type="transaction",
+            entity_id=txn.id,
+            metadata={
+                "amount": float(total_amount),
+                "payment_status": payload.payment_status,
+                "item_count": len(payload.items),
+            },
+        )
+
         await self.session.commit()
         txn = await self.transactions.get_by_id(business_id=business_id, transaction_id=txn.id)
         return TransactionResponse.model_validate(txn)
@@ -139,13 +160,22 @@ class FinanceService:
         return TransactionResponse.model_validate(txn)
 
     async def record_expense(
-        self, *, business_id: UUID, payload: ExpenseCreateRequest
+        self, *, business_id: UUID, payload: ExpenseCreateRequest, actor_id: UUID | None = None
     ) -> ExpenseResponse:
         expense = await self.expenses.create(
             business_id=business_id,
             category=payload.category,
             amount=payload.amount,
             note=payload.note,
+        )
+        await self.audit.record(
+            business_id=business_id,
+            actor_type="user",
+            actor_id=str(actor_id) if actor_id else None,
+            action="expense.recorded",
+            entity_type="expense",
+            entity_id=expense.id,
+            metadata={"category": expense.category, "amount": float(expense.amount)},
         )
         await self.session.commit()
         await self.session.refresh(expense)

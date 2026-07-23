@@ -18,7 +18,7 @@ async def record_expense(
     session: AsyncSession = Depends(get_session),
 ):
     return await FinanceService(session).record_expense(
-        business_id=ctx.business_id, payload=payload
+        business_id=ctx.business_id, payload=payload, actor_id=ctx.user_id
     )
 
 

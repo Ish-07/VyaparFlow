@@ -13,6 +13,7 @@ from app.schemas.product import (
     StockAdjustResponse,
     StockMovementResponse,
 )
+from app.services.audit_service import AuditLogService
 
 settings = get_settings()
 
@@ -60,9 +61,10 @@ class InventoryService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.products = ProductRepository(session)
+        self.audit = AuditLogService(session)
 
     async def create_product(
-        self, *, business_id: UUID, payload: ProductCreateRequest
+        self, *, business_id: UUID, payload: ProductCreateRequest, actor_id: UUID | None = None
     ) -> ProductResponse:
         existing = await self.products.get_by_name(business_id=business_id, name=payload.name)
         if existing:
@@ -71,6 +73,15 @@ class InventoryService:
                 detail=f"Product '{payload.name}' already exists for this business",
             )
         product = await self.products.create(business_id=business_id, **payload.model_dump())
+        await self.audit.record(
+            business_id=business_id,
+            actor_type="user",
+            actor_id=str(actor_id) if actor_id else None,
+            action="product.created",
+            entity_type="product",
+            entity_id=product.id,
+            metadata={"name": product.name, "stock_quantity": float(product.stock_quantity)},
+        )
         await self.session.commit()
         return _to_response(product)
 
@@ -110,7 +121,7 @@ class InventoryService:
         return _to_response(product)
 
     async def adjust_stock(
-        self, *, business_id: UUID, product_id: UUID, payload: StockAdjustRequest
+        self, *, business_id: UUID, product_id: UUID, payload: StockAdjustRequest, actor_id: UUID | None = None
     ) -> StockAdjustResponse:
         """Deducting more than available stock is blocked by default (409),
         matching business setting ALLOW_NEGATIVE_STOCK. The caller can
@@ -142,6 +153,27 @@ class InventoryService:
             reference_type=payload.reference_type,
             reference_id=payload.reference_id,
         )
+        await self.audit.record(
+            business_id=business_id,
+            actor_type="user",
+            actor_id=str(actor_id) if actor_id else None,
+            action="stock.adjusted",
+            entity_type="product",
+            entity_id=product.id,
+            metadata={
+                "quantity_change": float(payload.quantity_change),
+                "new_stock_quantity": float(product.stock_quantity),
+                "reference_type": payload.reference_type,
+            },
+        )
+
+        from app.services.reminder_service import ReminderService  # local import: avoids
+
+        # inventory_service <-> reminder_service import cycle risk at module load time.
+        await ReminderService(self.session).ensure_low_stock_reminder(
+            business_id=business_id, product=product
+        )
+
         await self.session.commit()
         await self.session.refresh(product)
 

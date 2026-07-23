@@ -24,7 +24,7 @@ async def create_product(
     session: AsyncSession = Depends(get_session),
 ):
     return await InventoryService(session).create_product(
-        business_id=ctx.business_id, payload=payload
+        business_id=ctx.business_id, payload=payload, actor_id=ctx.user_id
     )
 
 
@@ -75,5 +75,5 @@ async def adjust_stock(
     session: AsyncSession = Depends(get_session),
 ):
     return await InventoryService(session).adjust_stock(
-        business_id=ctx.business_id, product_id=product_id, payload=payload
+        business_id=ctx.business_id, product_id=product_id, payload=payload, actor_id=ctx.user_id
     )

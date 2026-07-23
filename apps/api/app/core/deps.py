@@ -20,11 +20,14 @@ _bearer_scheme = HTTPBearer(auto_error=True)
 
 
 class BusinessContext:
-    """Resolved tenant context attached to a request: which business, which role."""
+    """Resolved tenant context attached to a request: which business, which
+    role, and which user — the last of these is what lets audit logs
+    attribute an action to a specific person, not just a business."""
 
-    def __init__(self, business_id: UUID, role: str):
+    def __init__(self, business_id: UUID, role: str, user_id: UUID):
         self.business_id = business_id
         self.role = role
+        self.user_id = user_id
 
 
 async def get_current_user(
@@ -71,4 +74,4 @@ async def require_business_context(
             detail="No business selected for this session. Call /auth/select-business "
             "or complete business onboarding first.",
         )
-    return BusinessContext(business_id=UUID(business_id), role=role)
+    return BusinessContext(business_id=UUID(business_id), role=role, user_id=user.id)
