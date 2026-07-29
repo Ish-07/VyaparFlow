@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from openai import (
@@ -17,6 +18,8 @@ from app.services.ai.base import (
     AIProviderTimeoutError,
     ParsedCommand,
 )
+
+logger = logging.getLogger("vyaparflow.ai.nvidia_nim")
 
 _SYSTEM_PROMPT = """You are the command-understanding layer for VyaparFlow, a small-business \
 management system. Given a short business command (possibly in English, Hindi, or Hinglish), \
@@ -51,6 +54,20 @@ if nothing matches.
 """
 
 
+_RAG_SYSTEM_PROMPT = """You are answering a small business owner's question using ONLY the \
+provided context excerpts from their own uploaded business documents. Follow these rules strictly:
+
+- Answer ONLY from the provided context. Do not use outside knowledge or invent facts, prices, \
+dates, policies, or numbers not present in the context.
+- If the context does not contain enough information to answer, say clearly that you don't have \
+enough information in the uploaded documents to answer this, rather than guessing.
+- Keep the answer short and conversational, suitable for reading aloud or as a text reply — a \
+few sentences, not an essay.
+- Do not mention "the context" or "the excerpts" explicitly; answer naturally as if you simply \
+know this about their business.
+"""
+
+
 class NvidiaNimProvider(AIProvider):
     """NVIDIA NIM's inference endpoints are OpenAI-compatible, so this
     reuses the standard `openai` SDK pointed at NVIDIA's base_url instead
@@ -60,9 +77,18 @@ class NvidiaNimProvider(AIProvider):
 
     name = "nvidia_nim"
 
-    def __init__(self, *, api_key: str, base_url: str, model: str, timeout_seconds: float):
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_seconds: float,
+        embedding_model: str = "nvidia/nemotron-3-embed-1b",
+    ):
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds)
         self._model = model
+        self._embedding_model = embedding_model
 
     async def parse_command(self, text: str, business_context: dict) -> ParsedCommand:
         known_products = business_context.get("known_products") or []
@@ -71,6 +97,7 @@ class NvidiaNimProvider(AIProvider):
             user_content += f"\n\nKnown product names for this business: {', '.join(known_products)}"
 
         start = time.monotonic()
+        logger.info("Calling NVIDIA NIM model=%s for command: %r", self._model, text[:120])
         try:
             completion = await self._client.chat.completions.create(
                 model=self._model,
@@ -95,11 +122,15 @@ class NvidiaNimProvider(AIProvider):
 
         latency_ms = (time.monotonic() - start) * 1000
         raw = completion.choices[0].message.content or ""
+        logger.info("NVIDIA NIM responded in %.0fms: %r", latency_ms, raw[:300])
         parsed = self._parse_json_response(raw)
 
         intent = parsed.get("intent", "UNKNOWN")
         entities = parsed.get("entities") or {}
         confidence = float(parsed.get("confidence", 0.0))
+        logger.info(
+            "Parsed as intent=%s confidence=%.2f entities=%s", intent, confidence, entities
+        )
 
         # Belt-and-suspenders: never trust the LLM's own judgment of
         # "nothing's missing" — recompute against our own required-field
@@ -132,6 +163,62 @@ class NvidiaNimProvider(AIProvider):
             model_used=self._model,
             latency_ms=latency_ms,
         )
+
+    async def create_embedding(self, text: str, *, input_type: str = "passage") -> list[float]:
+        if input_type not in ("passage", "query"):
+            raise ValueError(f"input_type must be 'passage' or 'query', got {input_type!r}")
+
+        start = time.monotonic()
+        try:
+            response = await self._client.embeddings.create(
+                model=self._embedding_model,
+                input=[text],
+                encoding_format="float",
+                extra_body={"input_type": input_type, "truncate": "END"},
+            )
+        except RateLimitError as exc:
+            raise AIProviderRateLimitError(str(exc)) from exc
+        except APITimeoutError as exc:
+            raise AIProviderTimeoutError(str(exc)) from exc
+        except (APIConnectionError, APIStatusError) as exc:
+            raise AIProviderTimeoutError(str(exc)) from exc
+
+        latency_ms = (time.monotonic() - start) * 1000
+        vector = response.data[0].embedding
+        logger.info(
+            "NVIDIA NIM embedding (%s mode) in %.0fms, dim=%d", input_type, latency_ms, len(vector)
+        )
+        return vector
+
+    async def generate_rag_answer(self, query: str, retrieved_context: list[str]) -> str:
+        if not retrieved_context:
+            return "I don't have enough information in the uploaded documents to answer this."
+
+        context_block = "\n\n---\n\n".join(
+            f"Excerpt {i + 1}:\n{chunk}" for i, chunk in enumerate(retrieved_context)
+        )
+        try:
+            completion = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": _RAG_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"Context:\n{context_block}\n\nQuestion: {query}",
+                    },
+                ],
+                temperature=0.2,
+                max_tokens=400,
+                stream=False,
+            )
+        except RateLimitError as exc:
+            raise AIProviderRateLimitError(str(exc)) from exc
+        except APITimeoutError as exc:
+            raise AIProviderTimeoutError(str(exc)) from exc
+        except (APIConnectionError, APIStatusError) as exc:
+            raise AIProviderTimeoutError(str(exc)) from exc
+
+        return (completion.choices[0].message.content or "").strip()
 
     @staticmethod
     def _parse_json_response(raw: str) -> dict:

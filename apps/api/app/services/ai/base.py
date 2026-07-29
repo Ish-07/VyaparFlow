@@ -34,10 +34,14 @@ class Intent(str, Enum):
 # Required entity keys per intent — used by every provider (LLM or
 # rule-based) to compute `missing_fields`, and re-checked independently by
 # VoiceCommandService regardless of what a provider reports.
+# QUERY has no required structured entities: the raw transcript itself IS
+# the question passed to the RAG agent, so an empty set means "never
+# blocked on missing fields" (it can still be blocked on low confidence).
 REQUIRED_ENTITIES: dict[str, set[str]] = {
     "SALE": {"product_name", "quantity", "unit_price"},
     "EXPENSE": {"amount", "category"},
     "STOCK_UPDATE": {"product_name", "quantity"},
+    "QUERY": set(),
 }
 
 
@@ -96,7 +100,13 @@ class AIProvider(ABC):
     async def generate_rag_answer(self, query: str, retrieved_context: list[str]) -> str:
         raise NotImplementedError("RAG answer generation arrives with the RAG pipeline step.")
 
-    async def create_embedding(self, text: str) -> list[float]:
+    async def create_embedding(self, text: str, *, input_type: str = "passage") -> list[float]:
+        """input_type MUST be 'passage' when embedding text going INTO the
+        index (ingestion) and 'query' when embedding a search query — for
+        nvidia/nemotron-3-embed-1b specifically, NVIDIA's own docs warn
+        that using the wrong mode causes large retrieval-accuracy drops,
+        not just a slight quality dip. Callers must not default this
+        blindly; see rag_service.py for where each mode is used."""
         raise NotImplementedError("Embeddings arrive with the RAG pipeline step.")
 
     async def translate_text(self, text: str, source_language: str, target_language: str) -> str:

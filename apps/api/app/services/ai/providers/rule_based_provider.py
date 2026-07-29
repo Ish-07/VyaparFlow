@@ -54,3 +54,17 @@ class RuleBasedProvider(AIProvider):
             model_used="regex-v1",
             latency_ms=latency_ms,
         )
+
+    async def generate_rag_answer(self, query: str, retrieved_context: list[str]) -> str:
+        """No local LLM means no real synthesis — but returning the raw
+        matching excerpts is still genuinely useful (the user can read
+        them directly) rather than a bare failure. Explicitly labeled as
+        unsynthesized so it's never confused with a real generated answer.
+        """
+        if not retrieved_context:
+            return "I don't have enough information in the uploaded documents to answer this."
+        excerpts = "\n\n".join(f"- {chunk[:300]}" for chunk in retrieved_context[:3])
+        return (
+            "AI answer generation is unavailable right now, but here are the most relevant "
+            f"excerpts found in your documents:\n\n{excerpts}"
+        )

@@ -21,6 +21,7 @@ def _build_primary_provider() -> AIProvider | None:
             base_url=settings.llm_base_url,
             model=settings.llm_command_model,
             timeout_seconds=settings.ai_request_timeout_seconds,
+            embedding_model=settings.embedding_model,
         )
     return None
 
@@ -75,3 +76,45 @@ class AIRouter:
             model_used="none",
             fallback_reason=f"primary_failed_no_fallback:{type(last_error).__name__}",
         )
+
+    async def create_embedding(self, text: str, *, input_type: str = "passage") -> list[float]:
+        """No fallback exists for embeddings — the rule-based provider has
+        no local embedding model to fall back to, so an unavailable LLM
+        means ingestion/retrieval genuinely can't proceed this time.
+        Callers (rag_service.py) must catch AIProviderError and surface
+        that clearly (e.g. mark a document FAILED) rather than silently
+        storing a wrong-shaped or fake vector.
+        """
+        if self._primary is None:
+            raise AIProviderError("No embedding provider configured (LLM_API_KEY not set).")
+
+        last_error: Exception | None = None
+        attempts = 1 + max(settings.ai_max_retries, 0)
+        for attempt in range(attempts):
+            try:
+                return await self._primary.create_embedding(text, input_type=input_type)
+            except AIProviderError as exc:
+                last_error = exc
+                logger.warning(
+                    "Embedding provider %s failed (attempt %d/%d): %s",
+                    self._primary.name,
+                    attempt + 1,
+                    attempts,
+                    exc,
+                )
+        raise last_error
+
+    async def generate_rag_answer(self, query: str, retrieved_context: list[str]) -> tuple[str, str]:
+        """Returns (answer_text, provider_used) — unlike parse_command,
+        the rule-based fallback here is genuinely useful (raw excerpts),
+        so a full outage still degrades gracefully rather than failing.
+        """
+        if self._primary is not None:
+            try:
+                answer = await self._primary.generate_rag_answer(query, retrieved_context)
+                return answer, self._primary.name
+            except AIProviderError as exc:
+                logger.warning("RAG answer generation via %s failed: %s", self._primary.name, exc)
+
+        answer = await self._fallback.generate_rag_answer(query, retrieved_context)
+        return answer, self._fallback.name

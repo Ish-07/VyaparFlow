@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     auth,
     businesses,
     customers,
+    documents,
     expenses,
     insights,
     products,
@@ -26,3 +27,4 @@ api_router.include_router(reminders.router)
 api_router.include_router(audit.router)
 api_router.include_router(voice_commands.router)
 api_router.include_router(insights.router)
+api_router.include_router(documents.router)

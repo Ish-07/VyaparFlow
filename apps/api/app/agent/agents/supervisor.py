@@ -61,6 +61,8 @@ async def supervisor_node(state: AgentState) -> dict:
         updates["next_agent"] = "finance_agent"
     elif intent == "STOCK_UPDATE":
         updates["next_agent"] = "inventory_agent"
+    elif intent == "QUERY":
+        updates["next_agent"] = "rag_agent"
     else:
         updates["next_agent"] = "clarification_agent"
         updates["final_response"] = f"No agent is wired up yet for intent {intent}."

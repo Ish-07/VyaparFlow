@@ -21,6 +21,7 @@ from app.agent.agents.advisor_agent import build_advisor_agent
 from app.agent.agents.clarification_agent import clarification_agent_node
 from app.agent.agents.finance_agent import build_finance_agent
 from app.agent.agents.inventory_agent import build_inventory_agent
+from app.agent.agents.rag_agent import build_rag_agent
 from app.agent.agents.supervisor import supervisor_node
 from app.agent.state import AgentState
 
@@ -41,6 +42,7 @@ def build_agent_graph(session):
     graph.add_node("finance_agent", build_finance_agent(session))
     graph.add_node("advisor_agent", build_advisor_agent(session))
     graph.add_node("clarification_agent", clarification_agent_node)
+    graph.add_node("rag_agent", build_rag_agent(session))
 
     graph.set_entry_point("supervisor")
     graph.add_conditional_edges(
@@ -50,6 +52,7 @@ def build_agent_graph(session):
             "inventory_agent": "inventory_agent",
             "finance_agent": "finance_agent",
             "clarification_agent": "clarification_agent",
+            "rag_agent": "rag_agent",
         },
     )
     graph.add_conditional_edges(
@@ -60,5 +63,6 @@ def build_agent_graph(session):
     graph.add_edge("inventory_agent", END)
     graph.add_edge("advisor_agent", END)
     graph.add_edge("clarification_agent", END)
+    graph.add_edge("rag_agent", END)
 
     return graph.compile()
