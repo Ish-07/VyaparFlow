@@ -22,10 +22,12 @@ class VoiceCommand(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     transcript: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(String(20))
     intent: Mapped[str | None] = mapped_column(String(40))  # SALE, EXPENSE, STOCK_UPDATE, REPORT, UNKNOWN
+    entities: Mapped[dict] = mapped_column(JSONB, default=dict)
     confidence: Mapped[float | None] = mapped_column(Numeric(5, 4))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING")
     # PENDING, TRANSCRIBING, UNDERSTANDING, EXECUTING, NEEDS_CONFIRMATION, COMPLETED, FAILED
     idempotency_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    final_response: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column()
 
 

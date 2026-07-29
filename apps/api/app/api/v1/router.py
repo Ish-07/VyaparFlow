@@ -7,9 +7,11 @@ from app.api.v1.endpoints import (
     businesses,
     customers,
     expenses,
+    insights,
     products,
     reminders,
     transactions,
+    voice_commands,
 )
 
 api_router = APIRouter()
@@ -22,3 +24,5 @@ api_router.include_router(expenses.router)
 api_router.include_router(analytics.router)
 api_router.include_router(reminders.router)
 api_router.include_router(audit.router)
+api_router.include_router(voice_commands.router)
+api_router.include_router(insights.router)

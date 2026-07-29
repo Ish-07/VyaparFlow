@@ -41,6 +41,20 @@ class ProductRepository:
         )
         return result.scalar_one_or_none()
 
+    async def find_by_name_ilike(self, *, business_id: UUID, name: str) -> Product | None:
+        """Case-insensitive lookup for matching free-text product names
+        from parsed voice/text commands (e.g. 'pickle bottle' -> 'Pickle
+        Bottle'). This is a deliberately simple placeholder — genuine
+        fuzzy/typo-tolerant matching (the LLD's inventory.findProduct
+        'fuzzy match threshold') is deferred to the RAG/embeddings step.
+        """
+        result = await self.session.execute(
+            select(Product).where(
+                Product.business_id == business_id, Product.name.ilike(name)
+            )
+        )
+        return result.scalars().first()
+
     async def list(
         self,
         *,
