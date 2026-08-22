@@ -20,6 +20,7 @@ def _build_primary_provider() -> AIProvider | None:
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_command_model,
+            rag_model=settings.llm_rag_model,
             timeout_seconds=settings.ai_request_timeout_seconds,
             embedding_model=settings.embedding_model,
         )
@@ -110,11 +111,19 @@ class AIRouter:
         so a full outage still degrades gracefully rather than failing.
         """
         if self._primary is not None:
-            try:
-                answer = await self._primary.generate_rag_answer(query, retrieved_context)
-                return answer, self._primary.name
-            except AIProviderError as exc:
-                logger.warning("RAG answer generation via %s failed: %s", self._primary.name, exc)
+            attempts = 1 + max(settings.ai_max_retries, 0)
+            for attempt in range(attempts):
+                try:
+                    answer = await self._primary.generate_rag_answer(query, retrieved_context)
+                    return answer, self._primary.name
+                except AIProviderError as exc:
+                    logger.warning(
+                        "RAG answer generation via %s failed (attempt %d/%d): %s",
+                        self._primary.name,
+                        attempt + 1,
+                        attempts,
+                        exc,
+                    )
 
         answer = await self._fallback.generate_rag_answer(query, retrieved_context)
         return answer, self._fallback.name

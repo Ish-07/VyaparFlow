@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VyaparFlow — Dev Console</title>
+<style>
+  :root {
+    --ink: #1c1f26;
+    --paper: #f7f7f5;
+    --panel: #ffffff;
+    --line: #e2e2df;
+    --accent: #2a6f5e;
+    --accent-ink: #ffffff;
+    --warn: #b5502a;
+    --muted: #6b6f76;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: var(--panel);
+  }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: 0.2px; }
+  header .sub { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  #status-bar {
+    padding: 8px 24px;
+    font-size: 12px;
+    font-family: var(--mono);
+    background: #eef3f1;
+    border-bottom: 1px solid var(--line);
+    color: var(--accent);
+  }
+  #status-bar.unscoped { background: #f7efe9; color: var(--warn); }
+  main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+    padding: 20px 24px 60px;
+    max-width: 1400px;
+  }
+  section.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  section.card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea, select {
+    width: 100%;
+    padding: 7px 9px;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-family: inherit;
+    background: #fbfbfa;
+  }
+  textarea { font-family: var(--mono); min-height: 50px; resize: vertical; }
+  button {
+    margin-top: 12px;
+    padding: 8px 14px;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:hover { opacity: 0.88; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  pre.output {
+    margin-top: 12px;
+    background: #14171c;
+    color: #d9dee6;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 10px;
+    border-radius: 4px;
+    max-height: 280px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-left: 6px;
+  }
+  .badge.ok { background: #e3f0ea; color: var(--accent); }
+  .badge.warn { background: #f7e9df; color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .full { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>VyaparFlow — Dev Console</h1>
+  </div>
+  <div class="sub" id="api-base-label"></div>
+</header>
+<div id="status-bar" class="unscoped">Not logged in.</div>
+
+<main>
+
+  <section class="card">
+    <h2>0 · Connection</h2>
+    <label>API base URL</label>
+    <input id="api-base" value="http://127.0.0.1:8000/api/v1">
+    <div class="hint">Change this if your server runs on a different port. Reload isn't needed — it's read on every request.</div>
+  </section>
+
+  <section class="card">
+    <h2>1 · Register</h2>
+    <label>Name</label><input id="reg-name" value="Test Owner">
+    <label>Email</label><input id="reg-email" value="dev@example.com">
+    <label>Password</label><input id="reg-password" type="text" value="password123">
+    <button onclick="doRegister()">Register</button>
+    <pre class="output" id="out-register" style="display:none"></pre>
+  </section>
+
+  <section class="card">
+    <h2>2 · Login</h2>
+    <label>Email</label><input id="login-email" value="dev@example.com">
+    <label>Password</label><input id="login-password" value="password123">
+    <button onclick="doLogin()">Login</button>
+    <div class="hint">On success: 1 business → auto-scoped. 0 → create one below. 2+ → pick one below.</div>
+    <pre class="output" id="out-login" style="display:none"></pre>
+  </section>
+
+  <section class="card">
+    <h2>3 · Business</h2>
+    <label>Name</label><input id="biz-name" value="Test Shop">
+    <label>Currency</label><input id="biz-currency" value="INR">
+    <button onclick="createBusiness()">Create business</button>
+    <button class="secondary" onclick="listBusinesses()">List my businesses</button>
+    <div id="business-picker"></div>
+    <pre class="output" id="out-business" style="display:none"></pre>
+  </section>
+
+  <section class="card">
+    <h2>4 · Product</h2>
+    <label>Name</label><input id="prod-name" value="Pickle Bottle">
+    <div class="row">
+      <div><label>Stock qty</label><input id="prod-stock" value="20"></div>
+      <div><label>Reorder level</label><input id="prod-reorder" value="5"></div>
+      <div><label>Selling price</label><input id="prod-price" value="100"></div>
+    </div>
+    <button onclick="createProduct()">Create product</button>
+    <button class="secondary" onclick="listProducts()">List products</button>
+    <table id="products-table" style="display:none"><thead><tr><th>Name</th><th>Stock</th><th>Low?</th><th>ID</th></tr></thead><tbody></tbody></table>
+    <pre class="output" id="out-product" style="display:none"></pre>
+  </section>
+
+  <section class="card full">
+    <h2>5 · Voice / Text Command</h2>
+    <label>Command text</label>
+    <textarea id="vc-text">sold 5 pickle bottles for 100 rupees each</textarea>
+    <div class="row">
+      <div>
+        <label>Idempotency key (auto-filled, edit to force a new command)</label>
+        <input id="vc-key">
+      </div>
+    </div>
+    <button onclick="submitVoiceCommand()">Submit command</button>
+    <pre class="output" id="out-vc" style="display:none"></pre>
+
+    <div id="confirm-block" style="display:none; margin-top:14px; border-top:1px solid var(--line); padding-top:12px;">
+      <label>This command needs confirmation. Fill in what's needed and confirm:</label>
+      <div class="row">
+        <div><label>product_id (if not found)</label><input id="cf-product-id"></div>
+        <div><label>quantity (override)</label><input id="cf-quantity"></div>
+        <div><label>unit_price (override)</label><input id="cf-unit-price"></div>
+      </div>
+      <label><input type="checkbox" id="cf-negstock" style="width:auto; display:inline; margin-right:6px;">Confirm negative stock override</label>
+      <button onclick="confirmVoiceCommand()">Confirm & execute</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>6 · Transactions</h2>
+    <button onclick="listTransactions()">Refresh transactions</button>
+    <table id="txn-table" style="display:none"><thead><tr><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>7 · Dashboard</h2>
+    <button onclick="loadDashboard()">Refresh dashboard</button>
+    <pre class="output" id="out-dashboard" style="display:none"></pre>
+  </section>
+
+</main>
+
+<script>
+// ---- In-memory state only (no localStorage — this console is disposable per session) ----
+let state = { token: null, businessId: null, lastCommandId: null };
+let lastCommandIntent = null;
+
+function apiBase() { return document.getElementById('api-base').value.replace(/\/$/, ''); }
+
+function updateStatusBar() {
+  const bar = document.getElementById('status-bar');
+  if (!state.token) {
+    bar.textContent = 'Not logged in.';
+    bar.className = 'unscoped';
+  } else if (!state.businessId) {
+    bar.textContent = 'Logged in, but no business selected yet — create or pick one in section 3.';
+    bar.className = 'unscoped';
+  } else {
+    bar.textContent = `Logged in · business scoped: ${state.businessId}`;
+    bar.className = '';
+  }
+}
+
+function show(id, data) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+}
+
+async function api(path, { method = 'GET', body, auth = true } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  const res = await fetch(apiBase() + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data;
+  try { data = await res.json(); } catch { data = null; }
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function doRegister() {
+  const r = await api('/auth/register', {
+    method: 'POST', auth: false,
+    body: {
+      name: document.getElementById('reg-name').value,
+      email: document.getElementById('reg-email').value,
+      password: document.getElementById('reg-password').value,
+    },
+  });
+  show('out-register', { status: r.status, ...r.data });
+}
+
+async function doLogin() {
+  const r = await api('/auth/login', {
+    method: 'POST', auth: false,
+    body: {
+      email: document.getElementById('login-email').value,
+      password: document.getElementById('login-password').value,
+    },
+  });
+  show('out-login', { status: r.status, ...r.data });
+  if (r.ok) {
+    state.token = r.data.access_token;
+    state.businessId = r.data.selected_business_id;
+    if (!state.businessId && r.data.businesses && r.data.businesses.length > 1) {
+      renderBusinessPicker(r.data.businesses);
+    }
+  }
+  updateStatusBar();
+}
+
+function renderBusinessPicker(businesses) {
+  const el = document.getElementById('business-picker');
+  el.innerHTML = '<label>Multiple businesses — pick one:</label>' +
+    businesses.map(b => `<button class="secondary" onclick="selectBusiness('${b.business_id}')">${b.business_name}</button>`).join(' ');
+}
+
+async function selectBusiness(businessId) {
+  const r = await api('/auth/select-business', { method: 'POST', body: { business_id: businessId } });
+  show('out-business', { status: r.status, ...r.data });
+  if (r.ok) { state.token = r.data.access_token; state.businessId = r.data.selected_business_id; }
+  updateStatusBar();
+}
+
+async function createBusiness() {
+  const r = await api('/businesses', {
+    method: 'POST',
+    body: { name: document.getElementById('biz-name').value, currency: document.getElementById('biz-currency').value },
+  });
+  show('out-business', { status: r.status, ...r.data });
+  if (r.ok) {
+    // Re-login to get a token scoped to this new business (matches the API's own selection flow).
+    await doLogin();
+  }
+}
+
+async function listBusinesses() {
+  const r = await api('/businesses');
+  show('out-business', { status: r.status, ...r.data });
+  if (r.ok && r.data.length > 1 && !state.businessId) renderBusinessPicker(r.data.map(b => ({ business_id: b.id, business_name: b.name })));
+}
+
+async function createProduct() {
+  const r = await api('/products', {
+    method: 'POST',
+    body: {
+      name: document.getElementById('prod-name').value,
+      stock_quantity: Number(document.getElementById('prod-stock').value),
+      reorder_level: Number(document.getElementById('prod-reorder').value),
+      selling_price: Number(document.getElementById('prod-price').value),
+    },
+  });
+  show('out-product', { status: r.status, ...r.data });
+  if (r.ok) listProducts();
+}
+
+async function listProducts() {
+  const r = await api('/products');
+  if (!r.ok) { show('out-product', { status: r.status, ...r.data }); return; }
+  const table = document.getElementById('products-table');
+  table.style.display = 'table';
+  table.querySelector('tbody').innerHTML = r.data.map(p =>
+    `<tr><td>${p.name}</td><td>${p.stock_quantity}</td><td>${p.is_low_stock ? '⚠️' : ''}</td><td style="font-family:var(--mono); font-size:10px;">${p.id}</td></tr>`
+  ).join('');
+}
+
+function genIdempotencyKey() { return 'dev-' + Date.now() + '-' + Math.floor(Math.random() * 1000); }
+document.addEventListener('DOMContentLoaded', () => { document.getElementById('vc-key').value = genIdempotencyKey(); });
+
+async function submitVoiceCommand() {
+  const key = document.getElementById('vc-key').value || genIdempotencyKey();
+  const r = await api('/voice-commands', {
+    method: 'POST',
+    body: { text: document.getElementById('vc-text').value, idempotency_key: key },
+  });
+  show('out-vc', { status: r.status, ...r.data });
+  document.getElementById('confirm-block').style.display = 'none';
+  if (r.ok) {
+    state.lastCommandId = r.data.id;
+    lastCommandIntent = r.data.intent;
+    if (r.data.status === 'NEEDS_CONFIRMATION') {
+      document.getElementById('confirm-block').style.display = 'block';
+    } else {
+      // A completed command likely changed stock/transactions — refresh views.
+      listProducts();
+      listTransactions();
+    }
+    document.getElementById('vc-key').value = genIdempotencyKey();
+  }
+}
+
+async function confirmVoiceCommand() {
+  if (!state.lastCommandId) return;
+  const body = {
+    confirm_negative_stock: document.getElementById('cf-negstock').checked,
+  };
+  const pid = document.getElementById('cf-product-id').value;
+  const qty = document.getElementById('cf-quantity').value;
+  const price = document.getElementById('cf-unit-price').value;
+  if (pid) body.product_id = pid;
+  if (qty) body.quantity = Number(qty);
+  if (price) body.unit_price = Number(price);
+
+  const r = await api(`/voice-commands/${state.lastCommandId}/confirm`, { method: 'POST', body });
+  show('out-vc', { status: r.status, ...r.data });
+  if (r.ok && r.data.status === 'COMPLETED') {
+    document.getElementById('confirm-block').style.display = 'none';
+    listProducts();
+    listTransactions();
+  }
+}
+
+async function listTransactions() {
+  const r = await api('/transactions');
+  if (!r.ok) return;
+  const table = document.getElementById('txn-table');
+  table.style.display = 'table';
+  table.querySelector('tbody').innerHTML = r.data.map(t =>
+    `<tr><td>${t.type}</td><td>${t.amount}</td><td>${t.payment_status}</td></tr>`
+  ).join('');
+}
+
+async function loadDashboard() {
+  const r = await api('/analytics/dashboard');
+  show('out-dashboard', { status: r.status, ...r.data });
+}
+
+updateStatusBar();
+</script>
+
+</body>
+</html>

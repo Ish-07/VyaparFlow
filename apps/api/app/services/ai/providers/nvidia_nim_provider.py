@@ -78,26 +78,25 @@ class NvidiaNimProvider(AIProvider):
     name = "nvidia_nim"
 
     def __init__(
-        self,
-        *,
-        api_key: str,
-        base_url: str,
-        model: str,
-        timeout_seconds: float,
-        embedding_model: str = "nvidia/nemotron-3-embed-1b",
+    self,
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    timeout_seconds: float,
+    rag_model: str | None = None,
+    embedding_model: str = "nvidia/nemotron-3-embed-1b",
     ):
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds)
+        self._client = AsyncOpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout_seconds, max_retries=0,
+        )
         self._model = model
+        self._rag_model = rag_model or model
         self._embedding_model = embedding_model
+        self.embedding_model = self._embedding_model
 
-    async def parse_command(self, text: str, business_context: dict) -> ParsedCommand:
-        known_products = business_context.get("known_products") or []
-        user_content = text
-        if known_products:
-            user_content += f"\n\nKnown product names for this business: {', '.join(known_products)}"
-
+    async def parse_command(self, user_content: str) -> ParsedCommand:
         start = time.monotonic()
-        logger.info("Calling NVIDIA NIM model=%s for command: %r", self._model, text[:120])
         try:
             completion = await self._client.chat.completions.create(
                 model=self._model,
@@ -199,7 +198,7 @@ class NvidiaNimProvider(AIProvider):
         )
         try:
             completion = await self._client.chat.completions.create(
-                model=self._model,
+                model=self._rag_model,
                 messages=[
                     {"role": "system", "content": _RAG_SYSTEM_PROMPT},
                     {
