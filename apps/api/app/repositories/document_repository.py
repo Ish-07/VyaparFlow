@@ -52,9 +52,19 @@ class DocumentRepository:
         await self.session.flush()
         return chunk
 
-    async def get_document(self, *, business_id: UUID, document_id: UUID) -> Document | None:
+    async def get_document(
+        self,
+        *,
+        business_id: UUID,
+        document_id: UUID,
+    ) -> Document | None:
         result = await self.session.execute(
-            select(Document).where(Document.id == document_id, Document.business_id == business_id)
+            select(Document)
+            .where(
+                Document.id == document_id,
+                Document.business_id == business_id,
+            )
+            .options(selectinload(Document.chunks))
         )
         return result.scalar_one_or_none()
 
