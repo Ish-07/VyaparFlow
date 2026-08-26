@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import (
+    DocumentContentResponse,
     DocumentIngestRequest,
     DocumentResponse,
     RAGAnswerResponse,
@@ -125,22 +126,76 @@ class RAGService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
         return _to_response(document, chunk_count=len(document.chunks))
 
+    async def get_document_content(
+    self,
+    *,
+    business_id: UUID,
+    document_id: UUID,
+) -> DocumentContentResponse:
+        document = await self.documents.get_document(
+            business_id=business_id,
+            document_id=document_id,
+        )
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
+            )
+
+        ordered_chunks = sorted(
+            document.chunks,
+            key=lambda chunk: (
+                chunk.page_number is None,
+                chunk.page_number or 0,
+                str(chunk.id),
+            ),
+        )
+
+        content = "\n\n".join(chunk.chunk_text for chunk in ordered_chunks)
+
+        return DocumentContentResponse(
+            id=document.id,
+            title=document.title,
+            document_type=document.document_type,
+            language=document.language,
+            status=document.status,
+            chunk_count=len(document.chunks),
+            created_at=document.created_at,
+            content=content,
+        )
+
     async def answer_question(
-        self, *, business_id: UUID, query: str, top_k: int = 5
-    ) -> RAGAnswerResponse:
-        try:
-            # input_type="query": this is a SEARCH query, not indexed
-            # content - the opposite mode from ingestion, deliberately.
-            query_embedding = await self.ai_router.create_embedding(query, input_type="query")
-        except AIProviderError as exc:
+    self,
+    *,
+    business_id: UUID,
+    query: str,
+    top_k: int = 5,
+    document_id: UUID | None = None,
+) -> RAGAnswerResponse:
+        if document_id is not None:
+            document = await self.documents.get_document(
+                business_id=business_id,
+                document_id=document_id,
+            )
+
+            if not document:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Document not found",
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Could not process this question right now: {exc}",
-            )
+            ) from exc
 
         results = await self.documents.similarity_search(
-            business_id=business_id, query_embedding=query_embedding, top_k=top_k
-        )
+    business_id=business_id,
+    query_embedding=query_embedding,
+    top_k=top_k,
+    document_id=document_id,
+)
         relevant = [(chunk, sim) for chunk, sim in results if sim >= _MIN_SIMILARITY_FOR_CONTEXT]
 
         answer_text, provider_used = await self.ai_router.generate_rag_answer(
@@ -171,3 +226,12 @@ class RAGService:
             provider_used=provider_used,
             has_sufficient_context=len(relevant) > 0,
         )
+
+    async def ask_question(
+        self,
+        *,
+        business_id: UUID,
+        query: str,
+        top_k: int = 5,
+    ) -> RAGAnswerResponse:
+        return await self.answer_question(business_id=business_id, query=query, top_k=top_k)

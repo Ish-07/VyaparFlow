@@ -78,8 +78,13 @@ class DocumentRepository:
         return list(result.scalars().all())
 
     async def similarity_search(
-        self, *, business_id: UUID, query_embedding: list[float], top_k: int
-    ) -> list[tuple[DocumentChunk, float]]:
+    self,
+    *,
+    business_id: UUID,
+    query_embedding: list[float],
+    top_k: int,
+    document_id: UUID | None = None,
+) -> list[tuple[DocumentChunk, float]]:
         """The actual retrieval step: pgvector's `<=>` operator computes
         cosine DISTANCE (0 = identical, 2 = opposite) directly in SQL, so
         the nearest-neighbor ranking happens in the database, not in
@@ -92,12 +97,17 @@ class DocumentRepository:
         person reading the API response would expect "score" to work).
         """
         distance = DocumentChunk.embedding.op("<=>", return_type=Float)(query_embedding)
+        conditions = [
+            DocumentChunk.business_id == business_id,
+            DocumentChunk.embedding.is_not(None),
+        ]
+
+        if document_id is not None:
+            conditions.append(DocumentChunk.document_id == document_id)
+
         result = await self.session.execute(
             select(DocumentChunk, distance.label("distance"))
-            .where(
-                DocumentChunk.business_id == business_id,
-                DocumentChunk.embedding.is_not(None),
-            )
+            .where(*conditions)
             .options(selectinload(DocumentChunk.document))
             .order_by(distance)
             .limit(top_k)
