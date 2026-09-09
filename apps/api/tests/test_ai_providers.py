@@ -1,7 +1,7 @@
 """
 Tests for the AI provider abstraction (app/services/ai/).
 
-These use a MOCKED OpenAI client — no real network call to NVIDIA NIM is
+These use a MOCKED OpenAI client — no real network call to Gemini is
 made. This is deliberate: it lets the test suite run in CI/any machine
 without an API key, while still verifying the actual logic (JSON parsing,
 markdown-fence stripping, error-type mapping, retry-then-fallback
@@ -19,14 +19,14 @@ from app.services.ai.base import (
     AIProviderTimeoutError,
     ParsedCommand,
 )
-from app.services.ai.providers.nvidia_nim_provider import NvidiaNimProvider
+from app.services.ai.providers.gemini_provider import GeminiProvider
 from app.services.ai.providers.rule_based_provider import RuleBasedProvider
-from app.services.ai.router import AIRouter
+from app.services.ai.router import AIRouter, settings
 
 
 def _make_completion(content: str):
     """Builds a fake object shaped like openai's ChatCompletion response,
-    just deep enough for NvidiaNimProvider to read .choices[0].message.content
+    just deep enough for GeminiProvider to read .choices[0].message.content
     """
     message = MagicMock()
     message.content = content
@@ -38,7 +38,7 @@ def _make_completion(content: str):
 
 
 def _provider_with_mocked_client(response_content: str | None = None, side_effect=None):
-    provider = NvidiaNimProvider(
+    provider = GeminiProvider(
         api_key="fake-key", base_url="https://fake.example/v1", model="fake-model", timeout_seconds=5.0
     )
     provider._client = MagicMock()
@@ -53,7 +53,7 @@ def _provider_with_mocked_client(response_content: str | None = None, side_effec
     return provider
 
 
-class TestNvidiaNimProviderParsing:
+class TestGeminiProviderParsing:
     async def test_valid_json_sale_parsed_correctly(self):
         provider = _provider_with_mocked_client(
             json.dumps(
@@ -70,7 +70,7 @@ class TestNvidiaNimProviderParsing:
         assert result.confidence == 0.95
         assert result.entities["quantity"] == 5
         assert result.requires_confirmation is False
-        assert result.provider_used == "nvidia_nim"
+        assert result.provider_used == "gemini"
 
     async def test_markdown_fenced_json_is_stripped(self):
         fenced = '```json\n{"intent": "EXPENSE", "confidence": 0.9, "entities": {"amount": 500, "category": "rent"}}\n```'
@@ -143,9 +143,15 @@ class TestRuleBasedProvider:
 
 
 class TestAIRouterFallback:
-    async def test_no_api_key_goes_straight_to_fallback(self):
+    async def test_no_api_key_goes_straight_to_fallback(self, monkeypatch):
+        monkeypatch.setattr(settings, "llm_api_key", None)
+
         router = AIRouter(primary=None, fallback=RuleBasedProvider())
-        result = await router.parse_command("sold 5 pickle bottles for 100 rupees each")
+
+        result = await router.parse_command(
+            "sold 5 pickle bottles for 100 rupees each"
+        )
+
         assert result.provider_used == "rule_based"
         assert result.fallback_reason == "no_llm_configured"
 
@@ -159,7 +165,7 @@ class TestAIRouterFallback:
         fallback.parse_command = AsyncMock(side_effect=AssertionError("fallback should not be called"))
         router = AIRouter(primary=primary, fallback=fallback)
         result = await router.parse_command("sold 1 x for 1 each")
-        assert result.provider_used == "nvidia_nim"
+        assert result.provider_used == "gemini"
 
     async def test_primary_failure_falls_back_with_reason(self):
         primary = _provider_with_mocked_client(
@@ -170,12 +176,14 @@ class TestAIRouterFallback:
         assert result.provider_used == "rule_based"
         assert result.fallback_reason.startswith("primary_failed:")
 
-    async def test_retries_before_falling_back(self):
-        """ai_max_retries=1 means 2 total attempts before giving up on
-        the primary — verify the mock was actually called twice."""
+    async def test_retries_before_falling_back(self, monkeypatch):
+        monkeypatch.setattr(settings, "ai_max_retries", 1)
+
         primary = _provider_with_mocked_client(
             side_effect=APITimeoutError(request=MagicMock())
         )
         router = AIRouter(primary=primary, fallback=RuleBasedProvider())
+
         await router.parse_command("anything")
+
         assert primary._client.chat.completions.create.call_count == 2

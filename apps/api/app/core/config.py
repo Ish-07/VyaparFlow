@@ -25,20 +25,24 @@ class Settings(BaseSettings):
     object_storage_access_key: str | None = None
     object_storage_secret_key: str | None = None
 
-    # AI providers — NVIDIA NIM (OpenAI-compatible) as primary; rule-based
-    # parser remains as fallback when the LLM is unavailable or returns
-    # something we can't trust. See app/services/ai/ for the abstraction.
+        # AI provider configuration.
+    # The rule-based parser remains available as a fallback when the
+    # configured LLM is unavailable or returns an invalid response.
     speech_provider: str = "openai"
-    llm_provider: str = "nvidia_nim"
+    llm_provider: str = "gemini"
     llm_api_key: str | None = None
-    llm_base_url: str = "https://integrate.api.nvidia.com/v1"
-    llm_command_model: str = "meta/llama-3.3-70b-instruct"
-    llm_agent_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-    llm_rag_model: str = "meta/llama-3.3-70b-instruct"
-    embedding_model: str = "nvidia/nemotron-3-embed-1b"
-    translation_model: str = "nvidia/riva-translate-4b-instruct-v1_1"
-    ai_request_timeout_seconds: float = 10.0
-    ai_max_retries: int = 1
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+    # Gemini models
+    llm_command_model: str = "gemini-2.5-flash"
+    llm_rag_model: str = "gemini-2.5-flash"
+    llm_agent_model: str = "gemini-2.5-flash"
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimension: int = 1536
+    translation_model: str = "gemini-2.5-flash"
+
+    ai_request_timeout_seconds: float = 60.0
+    ai_max_retries: int = 2
     enable_rule_based_ai_fallback: bool = True
 
     #paddleocr setttings

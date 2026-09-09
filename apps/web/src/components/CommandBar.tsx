@@ -94,7 +94,7 @@ export function CommandBar({ onExecuted }: { onExecuted?: () => void }) {
               {result.confidence !== null && <span>· {(result.confidence * 100).toFixed(0)}% confidence</span>}
               {parserTask && (
                 <span title="Which parser produced this result">
-                  · {parserTask.agent_name === "nvidia_nim" ? "LLM" : "fallback parser"}
+                  · {parserTask.agent_name === "gemini" ? "LLM" : "fallback parser"}
                 </span>
               )}
             </div>

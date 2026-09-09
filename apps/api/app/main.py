@@ -9,8 +9,8 @@ settings = get_settings()
 
 # Root logger stays at WARNING (so we don't get flooded with noisy
 # third-party DEBUG/INFO logs), but everything under "vyaparflow.*" is
-# bumped to INFO — this is what makes things like "Calling NVIDIA NIM..."
-# actually show up in your terminal instead of being silently dropped
+# bumped to INFO so provider calls and application errors are visible
+# # actually show up in your terminal instead of being silently dropped
 # (Python's default root level is WARNING, so INFO logs are invisible
 # unless a logger's own effective level is explicitly raised like this).
 logging.basicConfig(

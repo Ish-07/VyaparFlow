@@ -5,7 +5,7 @@ import type { AgentTask, VoiceCommandResponse } from "@/lib/types";
 
 const AGENT_LABELS: Record<string, string> = {
   rule_based: "Rule-based parser (fallback)",
-  nvidia_nim: "LLM parser (NVIDIA NIM)",
+  gemini: "LLM parser (Gemini)",
   finance_agent: "Finance Agent",
   inventory_agent: "Inventory Agent",
   rag_agent: "RAG Agent",

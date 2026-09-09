@@ -6,7 +6,7 @@ that similarity ordering is verifiable: two mocked vectors that are
 identical should retrieve as the top match for each other, over a third,
 unrelated vector. This proves the actual pgvector cosine-distance query
 in document_repository.py works correctly, independent of real model
-quality (which needs a real NVIDIA API key, unavailable in this sandbox).
+quality (which needs a gemini API key, unavailable in this sandbox).
 """
 from unittest.mock import AsyncMock
 
@@ -217,19 +217,19 @@ class TestQueryIntentThroughAgentGraph:
         )
 
         from app.services.ai.base import ParsedCommand
-        from app.services.ai.providers.nvidia_nim_provider import NvidiaNimProvider
+        from app.services.ai.providers.gemini_provider import GeminiProvider
 
         async def fake_parse(self, text, business_context):
             return ParsedCommand(
-                intent="QUERY", confidence=0.95, entities={}, provider_used="nvidia_nim"
+                intent="QUERY", confidence=0.95, entities={}, provider_used="gemini"
             )
 
         async def fake_rag_answer(self, query, retrieved_context):
             return "You can return items within 7 days with a receipt."
 
-        monkeypatch.setattr(NvidiaNimProvider, "parse_command", fake_parse)
-        monkeypatch.setattr(NvidiaNimProvider, "generate_rag_answer", fake_rag_answer)
-        monkeypatch.setattr(NvidiaNimProvider, "create_embedding", fake_embed)
+        monkeypatch.setattr(GeminiProvider, "parse_command", fake_parse)
+        monkeypatch.setattr(GeminiProvider, "generate_rag_answer", fake_rag_answer)
+        monkeypatch.setattr(GeminiProvider, "create_embedding", fake_embed)
 
         import app.api.v1.endpoints.voice_commands as vc_module
         from app.services.voice_command_service import VoiceCommandService as OrigService
@@ -237,14 +237,20 @@ class TestQueryIntentThroughAgentGraph:
         def patched_service(session):
             svc = OrigService(session)
             svc.ai_router = AIRouter(
-                primary=NvidiaNimProvider(
-                    api_key="fake", base_url="https://fake/v1", model="fake", timeout_seconds=5
+                primary=GeminiProvider(
+                    api_key="fake",
+                    base_url="https://fake/v1",
+                    model="fake",
+                    timeout_seconds=5,
+                    embedding_model="gemini-embedding-001",
+                    embedding_dimension=EMBEDDING_DIM,
                 )
             )
             return svc
 
-        monkeypatch.setattr(vc_module, "VoiceCommandService", patched_service)
-
+        monkeypatch.setattr(GeminiProvider, "parse_command", fake_parse)
+        monkeypatch.setattr(GeminiProvider, "generate_rag_answer", fake_rag_answer)
+        monkeypatch.setattr(GeminiProvider, "create_embedding", fake_embed)
         r = await client.post(
             "/api/v1/voice-commands",
             json={"text": "what is your return policy?", "idempotency_key": "rag-query-1"},

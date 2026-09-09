@@ -1,7 +1,7 @@
 """
 Provider-agnostic AI abstraction.
 
-Every provider (NVIDIA NIM, rule-based fallback, and later Gemini/others)
+Every provider (Gemini and the rule-based fallback)
 implements this same interface. Business logic (VoiceCommandService, and
 later the RAG/agent layers) only ever talks to AIRouter — never to a
 provider class directly — so switching or adding providers is a config
@@ -103,7 +103,7 @@ class AIProvider(ABC):
     async def create_embedding(self, text: str, *, input_type: str = "passage") -> list[float]:
         """input_type MUST be 'passage' when embedding text going INTO the
         index (ingestion) and 'query' when embedding a search query — for
-        nvidia/nemotron-3-embed-1b specifically, NVIDIA's own docs warn
+        Gemini retrieval embeddings specifically,  own docs warn
         that using the wrong mode causes large retrieval-accuracy drops,
         not just a slight quality dip. Callers must not default this
         blindly; see rag_service.py for where each mode is used."""

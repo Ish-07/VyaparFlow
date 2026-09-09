@@ -2,7 +2,7 @@ import logging
 
 from app.core.config import get_settings
 from app.services.ai.base import AIProvider, AIProviderError, ParsedCommand
-from app.services.ai.providers.nvidia_nim_provider import NvidiaNimProvider
+from app.services.ai.providers.gemini_provider import GeminiProvider
 from app.services.ai.providers.rule_based_provider import RuleBasedProvider
 
 logger = logging.getLogger("vyaparflow.ai_router")
@@ -11,19 +11,22 @@ settings = get_settings()
 
 
 def _build_primary_provider() -> AIProvider | None:
-    """Returns None if no LLM_API_KEY is configured — lets local/dev
-    setups run on the rule-based fallback with zero AI config, per the
-    spec's dev-mode requirement, without crashing on a missing key.
+    """Build the configured primary provider.
+
+    If no Gemini key is configured, return None so local development
+    continues using the rule-based fallback.
     """
-    if settings.llm_provider == "nvidia_nim" and settings.llm_api_key:
-        return NvidiaNimProvider(
+    if settings.llm_provider == "gemini" and settings.llm_api_key:
+        return GeminiProvider(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_command_model,
             rag_model=settings.llm_rag_model,
             timeout_seconds=settings.ai_request_timeout_seconds,
             embedding_model=settings.embedding_model,
+            embedding_dimension=settings.embedding_dimension,
         )
+
     return None
 
 
