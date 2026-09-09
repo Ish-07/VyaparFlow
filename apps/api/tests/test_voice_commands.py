@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 from httpx import AsyncClient
 
 from app.services.ai.base import ParsedCommand
-from app.services.ai.providers.nvidia_nim_provider import NvidiaNimProvider
+from app.services.ai.providers.gemini_provider import GeminiProvider
 
 
 async def _create_product(client, headers, **overrides):
@@ -188,7 +188,7 @@ class TestVoiceCommandRuleBasedPath:
 
 class TestVoiceCommandWithMockedLLM:
     """Proves the LLM path itself (not just the fallback) drives the same
-    lifecycle correctly, using a mocked NVIDIA NIM response — no real API
+    lifecycle correctly, using a mocked Geminiresponse — no real API
     key or network call needed.
     """
 
@@ -203,12 +203,12 @@ class TestVoiceCommandWithMockedLLM:
                 intent="SALE",
                 confidence=0.97,
                 entities={"product_name": "Pickle Bottle", "quantity": 3, "unit_price": 100},
-                provider_used="nvidia_nim",
-                model_used="meta/llama-3.3-70b-instruct",
+                provider_used="gemini",
+                model_used="gemini-3.6-flash",
                 latency_ms=250.0,
             )
 
-        monkeypatch.setattr(NvidiaNimProvider, "parse_command", fake_parse_command)
+        monkeypatch.setattr(GeminiProvider, "parse_command", fake_parse_command)
 
         from app.services.ai.router import AIRouter
         import app.api.v1.endpoints.voice_commands as vc_endpoint_module
@@ -218,9 +218,14 @@ class TestVoiceCommandWithMockedLLM:
         def patched_service(session):
             svc = original_service(session)
             svc.ai_router = AIRouter(
-                primary=NvidiaNimProvider(
-                    api_key="fake", base_url="https://fake/v1", model="fake-model", timeout_seconds=5
-                )
+                primary=GeminiProvider(
+    api_key="fake",
+    base_url="https://fake/v1",
+    model="fake-model",
+    timeout_seconds=5,
+    embedding_model="gemini-embedding-001",
+    embedding_dimension=1536,
+)
             )
             return svc
 

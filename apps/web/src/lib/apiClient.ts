@@ -7,6 +7,7 @@ import {
   Customer,
   DashboardResponse,
   DocumentResponse,
+  DocumentContentResponse,
   Expense,
   Insight,
   LoginResponse,
@@ -146,12 +147,21 @@ export const api = {
   getVoiceCommandTasks: (id: string) => request<AgentTask[]>(`/voice-commands/${id}/tasks`),
 
   listDocuments: () => request<DocumentResponse[]>("/documents"),
+  getDocumentContent: (id: string) =>
+  request<DocumentContentResponse>(`/documents/${id}/content`),
 
   ingestDocument: (params: { title: string; document_type?: string; text: string }) =>
     request<DocumentResponse>("/documents", { method: "POST", body: params }),
 
-  queryDocuments: (params: { query: string; top_k?: number }) =>
-    request<RAGAnswerResponse>("/documents/query", { method: "POST", body: params }),
+  queryDocuments: (params: {
+  query: string;
+  top_k?: number;
+  document_id?: string;
+}) =>
+  request<RAGAnswerResponse>("/documents/query", {
+    method: "POST",
+    body: params,
+  }),
 
   uploadDocument: async (params: {
   title: string;

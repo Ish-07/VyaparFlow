@@ -9,6 +9,7 @@ from app.services.ocr_service import get_ocr_service
 from app.core.database import get_session
 from app.core.deps import BusinessContext, require_business_context
 from app.schemas.document import (
+    DocumentContentResponse,
     DocumentIngestRequest,
     DocumentResponse,
     RAGAnswerResponse,
@@ -37,6 +38,19 @@ async def list_documents(
 ):
     return await RAGService(session).list_documents(business_id=ctx.business_id)
 
+@router.get(
+    "/{document_id}/content",
+    response_model=DocumentContentResponse,
+)
+async def get_document_content(
+    document_id: UUID,
+    ctx: BusinessContext = Depends(require_business_context),
+    session: AsyncSession = Depends(get_session),
+):
+    return await RAGService(session).get_document_content(
+        business_id=ctx.business_id,
+        document_id=document_id,
+    )
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
@@ -54,8 +68,11 @@ async def query_documents(
     session: AsyncSession = Depends(get_session),
 ):
     return await RAGService(session).answer_question(
-        business_id=ctx.business_id, query=payload.query, top_k=payload.top_k
-    )
+    business_id=ctx.business_id,
+    query=payload.query,
+    top_k=payload.top_k,
+    document_id=payload.document_id,
+)
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document_for_ocr(
     file: UploadFile = File(...),

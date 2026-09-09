@@ -25,7 +25,7 @@ class VoiceCommandService:
                               -> NEEDS_CONFIRMATION -> (via confirm()) -> COMPLETED / FAILED
 
     "Understanding" (intent/entity extraction) is delegated to AIRouter,
-    which tries a real LLM (NVIDIA NIM) first and falls back to the
+     which tries the configured Gemini provider first and falls back to the
     Step 6 rule-based parser if unavailable.
 
     "Orchestration and execution" (Step 8) is delegated to a real

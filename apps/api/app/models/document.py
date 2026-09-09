@@ -7,14 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.common import TimestampMixin, UUIDPrimaryKeyMixin
-
-# Embedding dimension - MUST match the configured embedding model's actual
-# output size exactly (pgvector's column type bakes this in; a mismatch
-# fails on insert, not silently). nvidia/nemotron-3-embed-1b outputs
-# 2048-dim vectors natively and does NOT support reduced dimensions
-# (confirmed against NVIDIA's NIM docs) - this is NOT the OpenAI
-# text-embedding-3-small default of 1536 some boilerplate assumes.
-EMBEDDING_DIM = 2048
+from app.core.config import get_settings
+# The pgvector column dimension must match the configured embedding model.
+# Gemini gemini-embedding-001 is configured to return 1536 dimensions.
+EMBEDDING_DIM = get_settings().embedding_dimension
 
 
 class Document(Base, UUIDPrimaryKeyMixin, TimestampMixin):

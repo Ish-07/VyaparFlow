@@ -26,11 +26,14 @@ class DocumentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class DocumentContentResponse(DocumentResponse):
+    content: str        
 
 
 class RAGQueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     top_k: int = Field(default=5, ge=1, le=20)
+    document_id: UUID | None = None
 
 
 class RAGSourceChunk(BaseModel):

@@ -131,6 +131,9 @@ export interface DocumentResponse {
   chunk_count: number;
   created_at: string;
 }
+export interface DocumentContentResponse extends DocumentResponse {
+  content: string;
+}
 
 export interface RAGSourceChunk {
   chunk_id: string;
